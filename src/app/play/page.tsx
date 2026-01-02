@@ -4728,32 +4728,50 @@ function PlayPageClient() {
           html: '<canvas id="custom-heatmap-canvas" style="width: 100%; height: 100%; display: block;"></canvas>',
           style: {
             position: 'absolute',
-            bottom: '16px',
-            left: '10px',
-            right: '10px',
-            height: '30px',
+            bottom: '5px',
+            left: '0',
+            height: '60px',
             pointerEvents: 'none',
             zIndex: '30',
             display: danmakuHeatmapEnabledRef.current ? 'block' : 'none',
           },
           mounted: ($el: HTMLElement) => {
+            const canvas = $el.querySelector('#custom-heatmap-canvas') as HTMLCanvasElement;
+            if (!canvas) {
+              return;
+            }
+
+            // 根据实际显示尺寸和设备像素比设置 canvas 分辨率
+            const updateCanvasSize = () => {
+              const rect = canvas.getBoundingClientRect();
+              const dpr = window.devicePixelRatio || 1;
+              const newWidth = Math.round(rect.width * dpr);
+              const newHeight = Math.round(rect.height * dpr);
+
+              // 只在尺寸真正改变时才更新，避免闪烁
+              if (canvas.width !== newWidth || canvas.height !== newHeight) {
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                return true; // 返回 true 表示尺寸已更新
+              }
+              return false; // 返回 false 表示尺寸未变化
+            };
+
             // 动态获取进度条的实际位置并调整热力图
             const adjustHeatmapPosition = () => {
-              // 尝试查找进度条的内部元素
-              const progressInner = document.querySelector('.art-control-progress-inner') as HTMLElement;
-              const progressBar = progressInner || document.querySelector('.art-control-progress') as HTMLElement;
+              const progressBar = document.querySelector('.art-control-progress') as HTMLElement;
 
-              if (progressBar) {
+              if (progressBar && $el.parentElement) {
                 const rect = progressBar.getBoundingClientRect();
-                const parentRect = $el.parentElement?.getBoundingClientRect();
-                if (parentRect) {
-                  const leftOffset = rect.left - parentRect.left;
+                const parentRect = $el.parentElement.getBoundingClientRect();
 
-                  // 调整热力图位置以匹配进度条
-                  $el.style.left = `${leftOffset}px`;
-                  $el.style.right = 'auto';
-                  $el.style.width = `${rect.width}px`;
-                }
+                // 调整热力图位置以完全匹配进度条
+                $el.style.left = `${rect.left - parentRect.left}px`;
+                $el.style.bottom = `${parentRect.bottom - rect.bottom + 5}px`;
+                $el.style.width = `${rect.width}px`;
+
+                // 更新 canvas 分辨率
+                updateCanvasSize();
               }
             };
 
@@ -4789,23 +4807,30 @@ function PlayPageClient() {
             };
             window.addEventListener('resize', resizeHandler);
 
-            const canvas = $el.querySelector('#custom-heatmap-canvas') as HTMLCanvasElement;
-            if (!canvas) {
-              return;
-            }
-
-            canvas.width = 1000;
-            canvas.height = 30;
-
             let heatmapData: number[] = [];
             let isHovering = false;
             let hoverTime = 0;
             let tooltipEl: HTMLElement | null = null;
 
             // 监听热力图开关状态变化
+            let lastEnabled = localStorage.getItem('danmaku_heatmap_enabled') === 'true';
             const updateVisibility = () => {
-              const enabled = localStorage.getItem('danmaku_heatmap_enabled');
-              $el.style.display = enabled === 'true' ? 'block' : 'none';
+              const enabled = localStorage.getItem('danmaku_heatmap_enabled') === 'true';
+
+              // 只在状态真正改变时才更新 DOM
+              if (enabled !== lastEnabled) {
+                $el.style.display = enabled ? 'block' : 'none';
+
+                // 如果从关闭变为打开，重新调整位置和尺寸
+                if (enabled) {
+                  setTimeout(() => {
+                    adjustHeatmapPosition();
+                    drawHeatmap();
+                  }, 50);
+                }
+
+                lastEnabled = enabled;
+              }
             };
 
             // 定期检查开关状态
@@ -4840,11 +4865,14 @@ function PlayPageClient() {
               const ctx = canvas.getContext('2d');
               if (!ctx) return;
 
-              const width = canvas.width;
-              const height = canvas.height;
+              const dpr = window.devicePixelRatio || 1;
+              const width = canvas.width / dpr;
+              const height = canvas.height / dpr;
               const duration = artPlayerRef.current.duration || 0;
               const currentTime = artPlayerRef.current.currentTime || 0;
 
+              ctx.save();
+              ctx.scale(dpr, dpr);
               ctx.clearRect(0, 0, width, height);
 
               const progressRatio = duration > 0 ? currentTime / duration : 0;
@@ -4909,6 +4937,8 @@ function PlayPageClient() {
 
                 ctx.restore();
               }
+
+              ctx.restore();
             };
 
             // 格式化时间
