@@ -2288,6 +2288,41 @@ function PlayPageClient() {
         .replace(/[^\w\u4e00-\u9fa5]/g, ''); // 去除特殊符号，保留字母、数字、下划线和中文
     };
 
+    // 辅助函数：获取视频类型
+    const getType = (item: SearchResult): 'movie' | 'tv' => {
+      // 1. Emby 和 OpenList 源：使用 type_name（基于 TMDB，最可靠）
+      if (item.source === 'emby' || item.source?.startsWith('emby_') || item.source === 'openlist') {
+        return item.type_name === '电影' ? 'movie' : 'tv';
+      }
+
+      // 2. API 采集源：综合判断
+      const typeName = item.type_name?.toLowerCase() || '';
+
+      // 2.1 明确包含"电影"或"movie"或"片"的，判断为电影
+      if (typeName.includes('电影') || typeName.includes('movie') ||
+          typeName.endsWith('片') && !typeName.includes('动漫')) {
+        return 'movie';
+      }
+
+      // 2.2 包含"剧"、"动漫"、"综艺"等关键词的，判断为剧集
+      if (typeName.includes('剧') || typeName.includes('动漫') ||
+          typeName.includes('综艺') || typeName.includes('anime')) {
+        return 'tv';
+      }
+
+      // 2.3 检查 episodes_titles：如果包含"第X集"，判断为剧集
+      if (item.episodes_titles && item.episodes_titles.length > 0) {
+        const firstTitle = item.episodes_titles[0] || '';
+        if (/第\d+集|第\d+话|EP?\d+/i.test(firstTitle)) {
+          return 'tv';
+        }
+      }
+
+      // 2.4 兜底：使用 episodes.length（最不可靠）
+      return item.episodes.length === 1 ? 'movie' : 'tv';
+    };
+
+
     const fetchSourcesData = async (query: string): Promise<SearchResult[]> => {
       // 根据搜索词获取全部源信息
       try {
@@ -2303,19 +2338,19 @@ function PlayPageClient() {
               const cachedData = JSON.parse(cached);
 
               // 处理缓存的搜索结果，根据规则过滤
-              results = cachedData.filter(
+           results = cachedData.filter(
                 (result: SearchResult) =>
                   normalizeTitle(result.title).toLowerCase() ===
                     normalizeTitle(videoTitleRef.current).toLowerCase() &&
                   (videoYearRef.current
-                    ? result.year.toLowerCase() === videoYearRef.current.toLowerCase()
-                    : true) &&
-                  (searchType
-                    ? // openlist 和 emby 源跳过 episodes 长度检查，因为搜索时不返回详细播放列表
-                      result.source === 'openlist' ||
-                      result.source === 'emby' ||
-                      (searchType === 'tv' && result.episodes.length > 1) ||
-                      (searchType === 'movie' && result.episodes.length === 1)
+                    ? result.year.toLowerCase() === videoYearRef.current.toLowerCase() ||
+              !result.year ||
+                      result.year.trim() === '' ||
+                      result.year === 'unknown' ||
+                 !/^\d{4}$/.test(result.year)
+              : true) &&
+            (searchType
+                    ? getType(result) === searchType
                     : true)
               );
 
@@ -2343,14 +2378,14 @@ function PlayPageClient() {
             normalizeTitle(result.title).toLowerCase() ===
               normalizeTitle(videoTitleRef.current).toLowerCase() &&
             (videoYearRef.current
-              ? result.year.toLowerCase() === videoYearRef.current.toLowerCase()
-              : true) &&
+              ? result.year.toLowerCase() === videoYearRef.current.toLowerCase() ||
+                !result.year ||
+                result.year.trim() === '' ||
+                result.year === 'unknown' ||
+                !/^\d{4}$/.test(result.year)
+          : true) &&
             (searchType
-              ? // openlist 和 emby 源跳过 episodes 长度检查，因为搜索时不返回详细播放列表
-                result.source === 'openlist' ||
-                result.source === 'emby' ||
-                (searchType === 'tv' && result.episodes.length > 1) ||
-                (searchType === 'movie' && result.episodes.length === 1)
+              ? getType(result) === searchType
               : true)
         );
         setAvailableSources(results);

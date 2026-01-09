@@ -159,9 +159,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
   const actualEpisodes = dynamicEpisodes;
   const actualYear = year;
   const actualQuery = query || '';
-  const actualSearchType = isAggregate
-    ? (actualEpisodes && actualEpisodes === 1 ? 'movie' : 'tv')
-    : type;
+  const actualSearchType = type;
 
   // 获取收藏状态（搜索结果页面不检查）
   useEffect(() => {
