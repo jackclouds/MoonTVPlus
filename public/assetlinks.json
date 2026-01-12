@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "icu.caojie666.moon.twa",
+        "sha256_cert_fingerprints": ["4E:A2:9A:AA:CD:4F:DF:8E:8D:8C:81:5B:8A:D7:59:72:32:52:1F:2D:FC:CB:D5:0C:60:AF:A4:09:9C:83:FA:E4"]
+      }
+    }]
